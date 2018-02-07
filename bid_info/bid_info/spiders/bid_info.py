@@ -4,7 +4,6 @@ from scrapy.linkextractors import LinkExtractor
 import time
 import json
 
-from scrapy_splash import SplashRequest
 import re
 from ..items import BidInfoItem
 
@@ -12,6 +11,7 @@ from ..items import BidInfoItem
 class BaseSpider(scrapy.Spider):
     def __init__(self):
         self.current_date = time.strftime("%Y-%m-%d")
+
 
 class EpSpider(BaseSpider):
     name = 'ep'
@@ -32,7 +32,8 @@ class EpSpider(BaseSpider):
                 '//*[@id="ctl00_ContentPlaceHolder1_lblForenoticeTitle"]/text()').extract_first()
             info['area'] = response.xpath('//*[@id="ctl00_ContentPlaceHolder1_lblPrjPos"]/text()').extract_first()
             info['type'] = response.xpath('//*[@id="ctl00_ContentPlaceHolder1_lblService"]/text()').extract_first()
-            info['end_date'] = response.xpath('//*[@id="ctl00_ContentPlaceHolder1_lblBmEndDate"]/text()').extract_first().split(' ')[0]
+            info['end_date'] = \
+                response.xpath('//*[@id="ctl00_ContentPlaceHolder1_lblBmEndDate"]/text()').extract_first().split(' ')[0]
             info['content'] = response.xpath('//*[@id="ctl00_ContentPlaceHolder1_lblProduct"]').extract_first().split(
                 '<span id="ctl00_ContentPlaceHolder1_lblProduct">')[1]
             info['contact'] = response.xpath(
@@ -48,8 +49,7 @@ class CgSpider(BaseSpider):
     附件地址没有在json里面,这个要怎么搞呢?
     '''
     name = 'cg'
-    start_urls = [
-        'http://cg.xincheng.com/private-rest/rest/forenotice/getForenotices?pageNum=1&pageSize=100&publishStartTime={date}'.format(date=time.strftime("%Y-%m-%d"))]
+    start_urls = ['http://cg.xincheng.com/private-rest/rest/forenotice/getForenotices?pageNum=1&pageSize=100&publishStartTime={date}'.format(date=time.strftime("%Y-%m-%d"))]
 
     BASE_URL = 'http://cg.xincheng.com/bid-detail.html?id='
 
@@ -72,6 +72,7 @@ class CgSpider(BaseSpider):
 
 class BpSpider(BaseSpider):
     name = 'bp'
+
     # start_urls = ['http://bp.cfldcn.com/article!list.do?categoryCode=zbgg']
 
     def start_requests(self):
@@ -92,24 +93,24 @@ class BpSpider(BaseSpider):
                     # 真实的详情页地址
                     url_parsed = url_parse.group(0)
                     # 详情页又嵌套了一个页面,这个页面中只有内容
-                    url_content = url_parsed.replace('details','content')
-                    print("我需要的地址-------------------------->"+url_content)
-                    yield scrapy.Request("http://bp.cfldcn.com/article!"+url_content,callback=self.parse_detail,meta={'title':title,'end_date':end_date,'url':"http://bp.cfldcn.com/article!"+url_content})
+                    url_content = url_parsed.replace('details', 'content')
+                    yield scrapy.Request("http://bp.cfldcn.com/article!" + url_content, callback=self.parse_detail,
+                                         meta={'title': title, 'end_date': end_date,
+                                               'url': "http://bp.cfldcn.com/article!" + url_content})
 
-    def parse_detail(self,response):
+    def parse_detail(self, response):
         bid_info = BidInfoItem()
         # title = response.xpath('/html/body/div/div[2]/div[1]')
         bid_info['title'] = response.meta['title']
-        bid_info['end_date'] = response.meta['end_date']
+        bid_info['end_date'] = response.meta['end_date'].split()[0]
         bid_info['url'] = response.meta['url']
         # 这个网页中没有招标区域的概念,这里选择了招标联系人的联系地址,截取其城市
         bid_info['area'] = response.xpath('/html/body/p[last()-2]/span/span/text()').extract_first()
         bid_info['type'] = response.xpath('/html/body/p[4]/span[1]/text()').extract_first()
         bid_info['content'] = response.xpath('//body').extract_first()
-        bid_info['contact'] = response.xpath('/html/body/p[18]/span/text()').extract_first()
-        bid_info['tel'] = response.xpath('/html/body/p[19]/span/text()').extract_first()
+        bid_info['contact'] = response.xpath('/html/body/p[18]/span/text()').extract_first().split('联系人：')[-1]
+        bid_info['tel'] = response.xpath('/html/body/p[19]/span/text()').extract_first().split('联系电话：')[-1]
         yield bid_info
-
 
 
 class PrSpider(BaseSpider):
@@ -120,7 +121,6 @@ class PrSpider(BaseSpider):
     start_urls = ['http://pr.landsea.cn:38082/ccenrun-frontm/bidInfo.htm?currentnumber=1']
     allow_domains = ['http://pr.landsea.cn:38082/']
 
-
     def parse(self, response):
         infos = response.xpath('//div[@class="bulletin-dv-a"]/ul/li')
         for info in infos:
@@ -128,21 +128,23 @@ class PrSpider(BaseSpider):
             # 这里记得筛选时间
             publish_date = info.xpath('./a/span/text()').extract_first()
             if publish_date == self.current_date:
-                yield scrapy.Request(response.urljoin(url),self.parse_detail)
+                yield scrapy.Request(response.urljoin(url), self.parse_detail)
 
-    def parse_detail(self,response):
+    def parse_detail(self, response):
         bid_info = BidInfoItem()
         bid_info['url'] = response.url
         bid_info['title'] = response.xpath('//h3/text()').extract_first().strip()
-        bid_info['end_date'] = response.xpath('//table//tr[17]/td/text()').extract_first().strip().split('：')[-1].split()[0]
+        bid_info['end_date'] = \
+            response.xpath('//table//tr[17]/td/text()').extract_first().strip().split('：')[-1].split()[0]
         # 这个招标地址有的有问题，因为他没有地址这个字段，略显尴尬
-        bid_info['area'] = response.xpath('//table//tr[5]/td/text()').extract_first().strip().split("；")[0].split("：")[-1]
+        bid_info['area'] = response.xpath('//table//tr[5]/td/text()').extract_first().strip().split("；")[0].split("：")[
+            -1]
         bid_info['type'] = response.xpath('//table//tr[3]/td/text()').extract_first().strip().split("：")[-1]
         bid_info['content'] = response.xpath('//table').extract_first()
         bid_info['contact'] = response.xpath('//table//tr[18]/td/text()').extract_first().strip().split('：')[-1]
         bid_info['tel'] = response.xpath('//table//tr[19]/td/text()').extract_first().strip().split('：')[-1]
         yield bid_info
-        
+
 
 class SupplierSpider(BaseSpider):
     '''
@@ -153,22 +155,23 @@ class SupplierSpider(BaseSpider):
     start_urls = ['http://supplier.zhonghongholdings.com/index!zhaoBiaoList.do?type=1']
     allow_domains = ['http://supplier.zhonghongholdings.com/']
 
-    def parse(self,response):
+    def parse(self, response):
         rows = response.xpath('//tr[@class="zblist_over"]')
         for row in rows:
             title = row.xpath('./td/@title').extract_first()
             publish_date = row.xpath('./td[2]/text()').extract_first().split()[0]
-            url = row.xpath('./td[1]/a/@onclick').extract_first().split("href='")[-1].split("'")[0]
-            print('url--------------------------------------------------->'+response.urljoin(url))
-            yield scrapy.Request(response.urljoin(url),callback=self.parse_detail,meta={'title':title})
+            if self.current_date == publish_date:
+                url = row.xpath('./td[1]/a/@onclick').extract_first().split("href='")[-1].split("'")[0]
+                yield scrapy.Request(response.urljoin(url), callback=self.parse_detail, meta={'title': title})
 
-    def parse_detail(self,response):
+    def parse_detail(self, response):
         bid_info = BidInfoItem()
         # bid_info['title'] = response.xpath('//div[@class="newstitle"]/text()').extract_first()
-        bid_info['title'] = meta['title']
+        bid_info['title'] = response.meta['title']
         bid_info['url'] = response.url
-        bid_info['end_date'] = response.xpath('//table//tr[2]/td/span/text()').extract_first().split('报名截止日期：')[-1].split()[0]
-        
+        bid_info['end_date'] = \
+            response.xpath('//table//tr[2]/td/span/text()').extract_first().split('报名截止日期：')[-1].split()[0]
+
         # q:没有分类
         bid_info['type'] = '木有分类'
         bid_info['content'] = response.xpath('//div[@class="detail_c"]').extract_first()
@@ -178,6 +181,7 @@ class SupplierSpider(BaseSpider):
         bid_info['tel'] = content.split('供方服务热线：')[-1].split('<br>')[0]
         return bid_info
 
+
 class DzzbSpider(BaseSpider):
     '''
     这个没有区域
@@ -186,23 +190,27 @@ class DzzbSpider(BaseSpider):
     start_urls = ['https://dzzb.ciesco.com.cn/gg/zgysList']
     allow_domains = ['https://dzzb.ciesco.com.cn']
 
-    def parse(self,response):
+    def parse(self, response):
         rows = response.xpath('//table//tr')
         for row in rows:
             publish_date = row.xpath('./td[5]').extract_first()
             if publish_date == self.current_date:
                 url = row.xpath('./td[3]/a/@href').extract_first()
-                yield scrapy.Request(response.urljoin(url),callback=self.parse_detail)
+                yield scrapy.Request(response.urljoin(url), callback=self.parse_detail)
 
-    def parse_detail(self,response):
+    def parse_detail(self, response):
         bid_info = BidInfoItem()
         bid_info['url'] = response.url
         bid_info['title'] = response.xpath('//span[@class="title"]/text()').extract_first()
-        bid_info['end_date'] = response.xpath('//tr[@class="sqWJDiJiaoEndTime ZhiJieQueDingZBR"]/td/text()').extract_first().strip().split()[0]
-        bid_info['type'] = response.xpath('//div[@class="template"]/div[1]/table//tr[3]/td/text()').extract_first().strip()
+        bid_info['end_date'] = \
+            response.xpath(
+                '//tr[@class="sqWJDiJiaoEndTime ZhiJieQueDingZBR"]/td/text()').extract_first().strip().split()[0]
+        bid_info['type'] = response.xpath(
+            '//div[@class="template"]/div[1]/table//tr[3]/td/text()').extract_first().strip()
         bid_info['content'] = response.xpath('//div[@class="template"]').extract_first()
         # 木有区域
-        bid_info['contact'] = response.xpath('//div[@class="template"]/div[2]/table//tr[2]/td[1]/text()').extract_first()
+        bid_info['contact'] = response.xpath(
+            '//div[@class="template"]/div[2]/table//tr[2]/td[1]/text()').extract_first()
         bid_info['tel'] = response.xpath('//div[@class="template"]/div[2]/table//tr[2]/td[2]/text()').extract_first()
         yield bid_info
 
@@ -215,15 +223,15 @@ class ChiwaylandSpider(BaseSpider):
     start_urls = ['http://www.chiwayland.com/BidNews/BidPlan.htm']
     allow_domains = ['http://www.chiwayland.com']
 
-    def parse(self,response):
+    def parse(self, response):
         rows = response.xpath('//ul[@class="ucanNewsUl ms_BidPlan"]/li[position()>1]')
         for row in rows:
             publish_date = row.xpath('./span[@class="addtime"]/text()').extract_first()
             url = row.xpath('./a/@href').extract_first()
             if publish_date == self.current_date:
-                yield scrapy.Request(response.urljoin(url),callback=self.parse_detail)
+                yield scrapy.Request(response.urljoin(url), callback=self.parse_detail)
 
-    def parse_detail(self,response):
+    def parse_detail(self, response):
         bid_info = BidInfoItem()
         bid_info['url'] = response.url
         bid_info['title'] = response.xpath('//h1/span[@id="txtTitle"]/text()').extract_first()
@@ -233,6 +241,7 @@ class ChiwaylandSpider(BaseSpider):
         bid_info['tel'] = response.xpath('//table//tr[26]/td[2]/p/text()').extract_first().split('：')[-1]
         bid_info['area'] = response.xpath('//table//tr[6]/td[2]/p/text()').extract_first().strip('：').split('：')[-1]
         yield bid_info
+
 
 class CzSpider(BaseSpider):
     '''
@@ -244,12 +253,12 @@ class CzSpider(BaseSpider):
     start_urls = ['http://cz.newhope.cn/index.php?m=default.bidding']
     allow_domains = ['http://cz.newhope.cn']
 
-    def parse(self,response):
+    def parse(self, response):
         urls = response.xpath('//div[@class="f_wzbox"]/a/@href').extract()
         for url in urls:
-            yield scrapy.Request(response.urljoin(url),callback = self.parse_detail)
+            yield scrapy.Request(response.urljoin(url), callback=self.parse_detail)
 
-    def parse_detail(self,response):
+    def parse_detail(self, response):
         publish_date = response.xpath('//div[@class="cc_bg"]/p[4]/text()').extract_first()
         if publish_date is not None:
             publish_date = publish_date.split('发布时间：')[-1].split(" ")[0]
@@ -265,6 +274,7 @@ class CzSpider(BaseSpider):
                 bid_info['type'] = response.xpath('//div[@class="cc_bg"]/p[3]/text()').extract_first()
                 yield bid_info
 
+
 class ZcSpider(BaseSpider):
     '''
     1.不是按照发布时间排序，所以担心会不会最近的日期会在后边 的页面里，因为我这里为了快速，只抓第一页
@@ -273,56 +283,64 @@ class ZcSpider(BaseSpider):
     name = 'zc'
     start_urls = ['http://zc.gtcloud.cn/HomePage/TenderNotice.aspx']
     allow_domains = ['http://zc.gtcloud.cn/HomePage/']
-    
-    def parse(self,response):
+
+    def parse(self, response):
         titles = response.xpath('//nobr/a/text()').extract()
-        
+
         rows = response.xpath('//div[@class="f-gridpanel"]//table//tr[position()>2]')
         for row in rows:
             publish_date = row.xpath('./td[4]/text()').extract_first()
             if publish_date == self.current_date:
                 url = row.xpath('.//nobr/a/@href').extract_first()
-                yield scrapy.Request(response.urljoin(url),callback = self.parse_detail)
+                yield scrapy.Request(response.urljoin(url), callback=self.parse_detail)
 
-    def parse_detail(self,response):
+    def parse_detail(self, response):
         bid_info = BidInfoItem()
         bid_info['url'] = response.url
-        bid_info['title'] = response.xpath('//span[@id="ctl00_ContentPlaceHolder1_lblForenoticeTitle"]/text()').extract_first()
-        bid_info['end_date'] = response.xpath('//span[@id="ctl00_ContentPlaceHolder1_lblBmEndDate"]/text()').extract_first().split()[0]
+        bid_info['title'] = response.xpath(
+            '//span[@id="ctl00_ContentPlaceHolder1_lblForenoticeTitle"]/text()').extract_first()
+        bid_info['end_date'] = \
+            response.xpath('//span[@id="ctl00_ContentPlaceHolder1_lblBmEndDate"]/text()').extract_first().split()[0]
         bid_info['content'] = '内容在附件里，没抓取'
         # 没有area
-        bid_info['type'] = response.xpath('//span[@id="ctl00_ContentPlaceHolder1_lblProductTypeName"]/text()').extract_first()
-        bid_info['contact'] = response.xpath('//*[@id="ctl00_ContentPlaceHolder1_lblContactMan"]/text()').extract_first()
+        bid_info['type'] = response.xpath(
+            '//span[@id="ctl00_ContentPlaceHolder1_lblProductTypeName"]/text()').extract_first()
+        bid_info['contact'] = response.xpath(
+            '//*[@id="ctl00_ContentPlaceHolder1_lblContactMan"]/text()').extract_first()
         bid_info['tel'] = response.xpath('//*[@id="ctl00_ContentPlaceHolder1_lblMobilePhone"]/text()').extract_first()
         yield bid_info
+
 
 class WinwinSpider(BaseSpider):
     '''
     这个木有分类
     '''
-    name = 'win'
+    name = 'winwin'
     start_urls = ['http://winwin.yango.com.cn/HomePage/TenderNotice.aspx']
     allow_domains = ['http://winwin.yango.com.cn/HomePage']
 
-    def parse(self,response):
+    def parse(self, response):
         rows = response.xpath('//*[@id="ctl00_ContentPlaceHolder1__AppGrid_DXMainTable"]//tr[position()>2]')
         for row in rows:
             publish_date = row.xpath('./td[4]/text()').extract_first()
             if publish_date == self.current_date:
                 url = row.xpath('td/nobr/a/@href').extract_first()
-                yield scrapy.Request(response.urljoin(url),callback=self.parse_detail)
+                yield scrapy.Request(response.urljoin(url), callback=self.parse_detail)
 
-    def parse_detail(self,response):
+    def parse_detail(self, response):
         bid_info = BidInfoItem()
         bid_info['url'] = response.url
-        bid_info['title'] = response.xpath('//*[@id="ctl00_ContentPlaceHolder1_lblForenoticeTitle"]/text()').extract_first()
-        bid_info['end_date'] = response.xpath('//*[@id="ctl00_ContentPlaceHolder1_lblBmEndDate"]/text()').extract_first().split()[0]
+        bid_info['title'] = response.xpath(
+            '//*[@id="ctl00_ContentPlaceHolder1_lblForenoticeTitle"]/text()').extract_first()
+        bid_info['end_date'] = \
+            response.xpath('//*[@id="ctl00_ContentPlaceHolder1_lblBmEndDate"]/text()').extract_first().split()[0]
         bid_info['content'] = response.xpath('//table//tr[1]/td').extract_first()
         bid_info['area'] = response.xpath('//*[@id="ctl00_ContentPlaceHolder1_lblRegion"]/text()').extract_first()
         bid_info['type'] = '没有分类'
         bid_info['contact'] = response.xpath('//table//tr[1]/td').extract_first().split('联系人：')[-1].split('<br>')[0]
         bid_info['tel'] = response.xpath('//table//tr[1]/td').extract_first().split('联系方式：')[-1].split('<br>')[0]
         yield bid_info
+
 
 class TmsSpider(BaseSpider):
     '''
@@ -331,46 +349,77 @@ class TmsSpider(BaseSpider):
     name = 'tms'
     start_urls = ['http://tms.zldcgroup.cn/TMX/TMX/TMXMain.aspx']
 
-    def parse(self,response):
+    def parse(self, response):
         rows = response.xpath('//div[@class="index_list"]/ul')
         for row in rows:
             publish_date = row.xpath('li[3]/text()').extract_first()
             if publish_date == self.current_date:
                 url = row.xpath('./li/a/@href').extract_first().split(",'")[-1].split("')")[0]
-                yield scrapy.Request("http://tms.zldcgroup.cn/TMX/TMX/TMXNoticeView.aspx?keyid="+url,callback=self.parse_detail,meta={'url':"http://tms.zldcgroup.cn/TMX/TMX/TMXNoticeView.aspx?keyid="+url})
+                yield scrapy.Request("http://tms.zldcgroup.cn/TMX/TMX/TMXNoticeView.aspx?keyid=" + url,
+                                     callback=self.parse_detail,
+                                     meta={'url': "http://tms.zldcgroup.cn/TMX/TMX/TMXNoticeView.aspx?keyid=" + url})
 
-    def parse_detail(self,response):
+    def parse_detail(self, response):
         bid_info = BidInfoItem()
         bid_info['url'] = response.meta['url']
         bid_info['title'] = response.xpath('//div[@class="read"]/h2/text()').extract_first().strip()
         bid_info['content'] = response.xpath('//div[@id="details"]').extract_first()
-        
+
         yield bid_info
+
 
 class CrcSpider(BaseSpider):
     '''
     没有区域，也没有类型
-    截止日期不好获取
-
     '''
     name = 'crc'
-    start_urls = ['http://crc.cifi.com.cn/fdc/invite/splweb/inviteProjectListWebPage.do?method=initalize&conversationid=1517902669386']
+    start_urls = ['http://crc.cifi.com.cn/fdc/invite/splweb/inviteProjectListWebPage.do?method=getInviteProjectData&conversationid=1517902669386&_search=false&nd=1517980248147&rows=20&page=1&sidx=&sord=asc&includePager=true']
     allow_domains = ['crc.cifi.com.cn']
 
-    def parse(self,response):
-        rows = response.xpath('//table//tr')
+    def parse(self, response):
+        # rows = response.xpath('//table//tr')
+        infos = json.loads(response.body.decode('utf-8'))
+        for row in infos['rows']:
+            publish_date = row['auditTime'].split()[0]
+            if self.current_date == publish_date:
+                url = row['name'].split('("')[1].split('");')[0]
+                yield scrapy.Request(response.urljoin(url), callback=self.parse_detail)
+
+    def parse_detail(self, response):
+        bid_info = BidInfoItem()
+        bid_info['url'] = response.url
+        bid_info['title'] = response.xpath('//div[@class="title"]/text()').extract_first().strip()
+        bid_info['content'] = response.xpath('//div[@class="content"]').extract_first()
+        bid_info['tel'] = response.xpath('//div[@class="inp_2"]/text()').extract_first().strip()
+        bid_info['end_date'] = response.xpath('//div[@class="content"]/div[last()-1]/div[2]/text()').extract_first().strip()
+        bid_info['contact'] = response.xpath('//div[@class="content"]/div[last()-1]/div[3]/div[2]/text()').extract_first().strip()
+        yield bid_info
+
+class ZhaocaiSpider(BaseSpider):
+    '''
+    没有type
+    '''
+    name = 'zhaocai'
+    start_urls = ['http://zhaocai.bluetowngroup.com/HomePage/TenderNotice.aspx']
+    allow_domains = ['http://zhaocai.bluetowngroup.com/HomePage']
+
+    def parse(self, response):
+        rows = response.xpath('//table//tr[position()>2]')
         for row in rows:
             publish_date = row.xpath('./td[4]/text()').extract_first()
-            url = row.xpath('./td[2]/@onclick').extract_first().split('("')[-1].split('")')[0]
-            print('----------------------------->'+response.urljoin(url))
-            yield scrapy.Request(response.urljoin(url),callback=self.parse_detail)
+            if self.current_date == publish_date:
+                url = row.xpath('./td[2]/nobr/a/@href').extract_first()
+                yield scrapy.Request(response.urljoin(url),callback=self.parse_detail)
 
     def parse_detail(self,response):
         bid_info = BidInfoItem()
-        bid_info['url'] = bid_info.url
-        bid_info['title'] = response.xpath('//div[@class="title"]/text()').extract_first().strip()
-        bid_info['content'] = response.xpath('//div[@class="content"]').extract_first()
-        bid_info['tel'] = response.xpath('//div[@class="inp_2"]').extract_first()
-        bid_info['end_date'] = response.xpath('//div[@class="content"]/div[last()-1]/div[2]/text()').extract_first()
-        bid_info['contact'] = response.xpath('//div[@class="content"]/div[last()-1]/div[3]/div[2]/text()').extract_first()
+        bid_info['url'] = response.url
+        bid_info['title'] = response.xpath('//*[@id="ctl00_ContentPlaceHolder1_lblForenoticeTitle"]/text()').extract_first()
+        bid_info['end_date'] = response.xpath('//*[@id="ctl00_ContentPlaceHolder1_lblBmEndDate"]/text()').extract_first().split()[0]
+        bid_info['content'] = response.xpath('//td[@class="bmtiaojian"]/text()').extract_first()
+        content = response.xpath('//td[@class="bmtiaojian"]').extract_first()
+        if '工程地点：' in content:
+            bid_info['area'] =content.split('工程地点：')[-1].split('<br>')[0]
+        bid_info['contact'] = response.xpath('//*[@id="ctl00_ContentPlaceHolder1_lblContactMan"]/text()').extract_first()
+        bid_info['tel'] = response.xpath('//*[@id="ctl00_ContentPlaceHolder1_lblMobilePhone"]/text()').extract_first()
         yield bid_info

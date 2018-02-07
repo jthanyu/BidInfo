@@ -52,7 +52,7 @@ DOWNLOAD_DELAY = 0.25
 # Enable or disable downloader middlewares
 # See http://scrapy.readthedocs.org/en/latest/topics/downloader-middleware.html
 DOWNLOADER_MIDDLEWARES = {
-#    'bid_info.middlewares.MyCustomDownloaderMiddleware': 543,
+    #    'bid_info.middlewares.MyCustomDownloaderMiddleware': 543,
     'scrapy_splash.SplashCookiesMiddleware': 723,
     'scrapy_splash.SplashMiddleware': 725,
     'scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware': 810,
@@ -66,9 +66,9 @@ DOWNLOADER_MIDDLEWARES = {
 
 # Configure item pipelines
 # See http://scrapy.readthedocs.org/en/latest/topics/item-pipeline.html
-# ITEM_PIPELINES = {
-#    'bid_info.pipelines.BidInfoPipeline': 300,
-# }
+ITEM_PIPELINES = {
+    'bid_info.pipelines.BidInfoPipeline': 300,
+}
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See http://doc.scrapy.org/en/latest/topics/autothrottle.html
@@ -91,14 +91,5 @@ DOWNLOADER_MIDDLEWARES = {
 # HTTPCACHE_IGNORE_HTTP_CODES = []
 # HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
 
-FEED_EXPORT_FIELDS = ['title', 'area', 'type', 'end_date', 'content', 'contact', 'tel','url']
-
-# Splash服务器地址
-SPLASH_URL = 'http://localhost:8050'
-# 设置去重过滤器
-DUPEFILTER_CLASS = 'scrapy_splash.SplashAwareDupeFilter'
-SPIDER_MIDDLEWARES = {
-    'scrapy_splash.SplashDeduplicateArgsMiddleware': 100,
-}
-
-HTTPCACHE_STORAGE = 'scrapy_splash.SplashAwareFSCacheStorage'
+FEED_EXPORTERS = {'excel': 'bid_info.my_exporters.ExcelItemExporter'}
+FEED_EXPORT_FIELDS = ['title', 'area', 'type', 'end_date', 'content', 'contact', 'tel', 'url']

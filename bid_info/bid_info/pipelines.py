@@ -8,4 +8,7 @@
 
 class BidInfoPipeline(object):
     def process_item(self, item, spider):
+        # 给type加引号用的
+        if item['type'] != None:
+            item['type'] = '["' + item['type'] + '"]'
         return item
