@@ -67,7 +67,9 @@ DOWNLOADER_MIDDLEWARES = {
 # Configure item pipelines
 # See http://scrapy.readthedocs.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
-    'bid_info.pipelines.BidInfoPipeline': 300,
+    # 'bid_info.pipelines.BidInfoPipeline': 300,
+    'bid_info.pipelines.DBPipeline': 300,
+    'bid_info.pipelines.BidInfoDefaultPipeline': 200,
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)
@@ -92,4 +94,9 @@ ITEM_PIPELINES = {
 # HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
 
 FEED_EXPORTERS = {'excel': 'bid_info.my_exporters.ExcelItemExporter'}
-FEED_EXPORT_FIELDS = ['title', 'area', 'type', 'end_date', 'content', 'contact', 'tel', 'url']
+FEED_EXPORT_FIELDS = ['title', 'area', 'type', 'end_date', 'contact', 'tel', 'url']
+
+MYSQL_HOST = 'localhost'
+MYSQL_DBNAME = 'web_bidinfo'
+MYSQL_USER = 'MySQL账号'
+MYSQL_PASSWD = 'MySQL密码'
